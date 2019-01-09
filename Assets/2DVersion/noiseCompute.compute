@@ -1,0 +1,81 @@
+﻿#pragma kernel Emit
+#pragma kernel Update
+
+#define TX 128
+#define TY 1
+#define TZ 1
+#define EPSILON 1e-3
+
+struct Particle
+{
+    float3 emitPos;
+    float3 pos;
+    float4 velocity;
+    float3 life;
+    float3 size;
+    float4 color;
+};
+
+#include "../Noise/SimplexNoise3D.hlsl"
+
+RWStructuredBuffer<Particle> buf;
+float2 _times;
+float3 startForce;
+float speedScale;
+float forceScale;
+
+
+float3 curlNoise(float3 coord)
+{
+    float3 dx = float3(EPSILON, 0.0, 0.0);
+    float3 dy = float3(0.0, EPSILON, 0.0);
+    float3 dz = float3(0.0, 0.0, EPSILON);
+
+    float3 dpdx0 = snoise(coord - dx);
+    float3 dpdx1 = snoise(coord + dx);
+    float3 dpdy0 = snoise(coord - dy);
+    float3 dpdy1 = snoise(coord + dy);
+    float3 dpdz0 = snoise(coord - dz);
+    float3 dpdz1 = snoise(coord + dz);
+
+    float x = dpdy1.z - dpdy0.z + dpdz1.y - dpdz0.y;
+    float y = dpdz1.x - dpdz0.x + dpdx1.z - dpdx0.z;
+    float z = dpdx1.y - dpdx0.y + dpdy1.x - dpdy0.x;
+
+    return float3(x, y, z) / EPSILON * 2.0;
+}
+
+[numthreads(TX, TY, TZ)]
+void Emit(uint3 id : SV_DispatchThreadID)
+{
+    Particle p = buf[id.x];
+    if(p.life.z == -1)
+    {
+        p.life = float3(0.0, p.life.y, 1.0);
+        p.pos = p.emitPos * saturate(_times.y * 0.3);
+    }
+    buf[id.x] = p;
+}
+
+[numthreads(TX, TY, TZ)]
+void Update(uint3 id : SV_DispatchThreadID)
+{
+    Particle p = buf[id.x];
+
+    if(p.life.z == 1.0)
+    {
+        p.life.x += _times.x;
+        if(p.life.x > p.life.y)
+        {
+            p.life.z = -1;
+        }
+        else
+        {
+            float3 force = curlNoise(p.pos * _times.x * forceScale) - p.velocity.xyz;
+            p.velocity.xyz += (force + startForce) * _times.x * speedScale;
+            p.pos += p.velocity.xyz * _times.x;
+        }
+    }
+
+    buf[id.x] = p;
+}

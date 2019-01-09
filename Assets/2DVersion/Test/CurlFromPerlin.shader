@@ -21,7 +21,7 @@
 			#define mix lerp
 			#define EPSILON 1e-3
 			#include "UnityCG.cginc"
-			#include "../Noise/ClassicNoise3D.hlsl"
+			#include "Assets/Noise/ClassicNoise3D.hlsl"
 
 			struct appdata
 			{
