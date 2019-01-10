@@ -67,15 +67,15 @@ float3 ComputeGradient(float3 p)
 	float3 dy = float3(0, EPSILON, 0);
 	float3 dz = float3(0, 0, EPSILON);
 
-	float d = SampleDistance(p);
-	float dfdx = SampleDistance(p + dx) - d;
-	float dfdy = SampleDistance(p + dy) - d;
-	float dfdz = SampleDistance(p + dz) - d;
+	
+	float dfdx = SampleDistance(p + dx) - SampleDistance(p - dx);
+	float dfdy = SampleDistance(p + dy) - SampleDistance(p - dy);
+	float dfdz = SampleDistance(p + dz) - SampleDistance(p - dz);
 
 	return normalize(float3(dfdx, dfdy, dfdz));
 }
 
-float3 BlendVector(float3 potential, float alpha, float distanceGradient)
+float3 BlendVector(float3 potential, float alpha, float3 distanceGradient)
 {
 	float dp = dot(potential, distanceGradient);
 	return alpha * potential + (1.0 - alpha) * dp * distanceGradient;
@@ -87,10 +87,11 @@ float3 SamplePotential(float3 p)
 	float obstacleDistance = SampleDistance(p);
 	float d = abs(ramp(obstacleDistance / 1.0));
 
-	float3 risingForce = - p;
-	risingForce = float3(-risingForce.z, 0, risingForce.x);
-	float3 rpsi = 2.0 * risingForce;
+	float3 risingForce = p;
+	risingForce = float3(risingForce.z, 0, -risingForce.x);
+	float3 rpsi = 1.0 * risingForce;
 	float3 psi = BlendVector(noise3d(p) + rpsi, d, gradient);
+	//return snoise(p);
 	return psi;
 }
 
@@ -160,6 +161,5 @@ void Update(uint3 id : SV_DispatchThreadID)
             p.pos += p.velocity.xyz * _times.x;
         }
     }
-
     buf[id.x] = p;
 }
