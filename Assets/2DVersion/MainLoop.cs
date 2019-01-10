@@ -21,6 +21,7 @@ public class MainLoop : MonoBehaviour {
     [Range(1,15f)]
     public float maxlife = 5f;
     public Material instanceMat;
+    public Transform boundSphere;
 
     private int emitKernel, updateKernel;
     private ComputeBuffer particleBuffer;
@@ -65,6 +66,10 @@ public class MainLoop : MonoBehaviour {
         noiseCompute.SetVector("startForce", startForce);
         noiseCompute.SetFloat("speedScale", speedScale);
         noiseCompute.SetFloat("forceScale", forceScale);
+
+        Vector3 center = boundSphere.position;
+        float radius = boundSphere.lossyScale.x / 2f;
+        noiseCompute.SetVector("sphereData", new Vector4(center.x, center.y, center.z, radius));
         noiseCompute.SetBuffer(emitKernel, "buf", particleBuffer);
         noiseCompute.Dispatch(emitKernel, Mathf.CeilToInt((float)instanceCount / (float)tx), (int)ty, (int)tz);
 

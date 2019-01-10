@@ -23,7 +23,89 @@ float2 _times;
 float3 startForce;
 float speedScale;
 float forceScale;
+float4 sphereData;
 
+
+float snoise0(float3 s)
+{
+	return snoise(s);
+}
+
+float snoise1(float3 s)
+{
+	return snoise(float3(s.y + 31.416, s.z - 47.853, s.x + 12.793));
+}
+
+float snoise2(float3 s)
+{
+	return snoise(float3(s.z - 233.145, s.x - 113.408, s.y - 185.31));
+}
+
+float noise3d(float3 s)
+{
+	return float3(snoise0(s), snoise1(s), snoise2(s));
+}
+
+float ramp(float r)
+{
+	float res = 1.875 * r - 1.25 * r * r * r + 0.375 * r * r * r * r * r;
+	return min(1, max(-1, res));
+}
+
+float SampleDistance(float3 p)
+{
+	float3 center = sphereData.xyz;
+	float radius = sphereData.w;
+	float3 u = p - center;
+	float d = length(u);
+	return d - radius;
+}
+
+float3 ComputeGradient(float3 p)
+{
+	float3 dx = float3(EPSILON, 0, 0);
+	float3 dy = float3(0, EPSILON, 0);
+	float3 dz = float3(0, 0, EPSILON);
+
+	float d = SampleDistance(p);
+	float dfdx = SampleDistance(p + dx) - d;
+	float dfdy = SampleDistance(p + dy) - d;
+	float dfdz = SampleDistance(p + dz) - d;
+
+	return normalize(float3(dfdx, dfdy, dfdz));
+}
+
+float3 BlendVector(float3 potential, float alpha, float distanceGradient)
+{
+	float dp = dot(potential, distanceGradient);
+	return alpha * potential + (1.0 - alpha) * dp * distanceGradient;
+}
+
+float3 SamplePotential(float3 p)
+{
+	float3 gradient = ComputeGradient(p);
+	float obstacleDistance = SampleDistance(p);
+	float d = abs(ramp(obstacleDistance / 1.0));
+
+	float3 risingForce = - p;
+	risingForce = float3(-risingForce.z, 0, risingForce.x);
+	float3 rpsi = 2.0 * risingForce;
+	float3 psi = BlendVector(noise3d(p) + rpsi, d, gradient);
+	return psi;
+}
+
+float3 computeCurl(float3 p)
+{
+	float3 dx = float3(EPSILON, 0, 0);
+	float3 dy = float3(0, EPSILON, 0);
+	float3 dz = float3(0, 0, EPSILON);
+
+	float x = SamplePotential(p + dy).z - SamplePotential(p - dy).z - SamplePotential(p + dz).y + SamplePotential(p - dz).y;
+	float y = SamplePotential(p + dz).x - SamplePotential(p - dz).x - SamplePotential(p + dx).z + SamplePotential(p - dx).z;
+	float z = SamplePotential(p + dx).y - SamplePotential(p - dx).y - SamplePotential(p + dy).x + SamplePotential(p - dy).x;
+
+	return float3(x, y, z) / (2 * EPSILON);
+}
 
 float3 curlNoise(float3 coord)
 {
@@ -44,6 +126,8 @@ float3 curlNoise(float3 coord)
 
     return float3(x, y, z) / EPSILON * 2.0;
 }
+
+
 
 [numthreads(TX, TY, TZ)]
 void Emit(uint3 id : SV_DispatchThreadID)
@@ -71,8 +155,8 @@ void Update(uint3 id : SV_DispatchThreadID)
         }
         else
         {
-            float3 force = curlNoise(p.pos * _times.x * forceScale) - p.velocity.xyz;
-            p.velocity.xyz += (force + startForce) * _times.x * speedScale;
+            //float3 force = computeCurl(p.pos * _times.x * forceScale) - p.velocity.xyz;
+            p.velocity.xyz = computeCurl(p.pos) * speedScale;
             p.pos += p.velocity.xyz * _times.x;
         }
     }

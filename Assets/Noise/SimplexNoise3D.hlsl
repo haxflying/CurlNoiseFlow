@@ -191,9 +191,4 @@ float4 snoise_grad(float3 v)
     return 42.0 * float4(grad, dot(m4, px));
 }
 
-float ramp(float r)
-{
-	float res = 1.875 * r - 1.25 * r * r * r + 0.375 * r * r * r * r * r;
-	return min(1, max(r, -1));
-}
 
