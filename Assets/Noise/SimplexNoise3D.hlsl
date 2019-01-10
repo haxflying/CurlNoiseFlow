@@ -197,8 +197,3 @@ float ramp(float r)
 	return min(1, max(r, -1));
 }
 
-float snoise_bg(float3 v, float d0)
-{
-	float 
-	float a = 
-}
